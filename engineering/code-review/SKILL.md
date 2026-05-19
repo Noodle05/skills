@@ -1,40 +1,41 @@
 ---
 name: code-review
-description: Review pull requests and code changes with concise, issues-only feedback. Each issue is detailed with file references, root cause, and suggested fix. Use when user asks for a code review, PR review, "review this PR", "review my changes", or wants feedback on a diff or branch.
+description: Review pull requests and code changes with concise, issues-only feedback. Use when user asks for a code review, PR review, "review this PR", "review my changes", or wants feedback on a diff or branch.
 ---
 
 # Code Review
 
 ## Principles
 
-- **Issues only** — never list what's good. The review is exclusively problems and suggestions.
-- **Detailed issues** — each finding includes file/line references, root cause, risk, and a concrete fix or alternative.
-- **Concise overall** — no preamble, no praise, no summaries. Jump straight to issues.
-- **Do not run tests** — assume the author or CI/CD runs them. Review for missing test coverage, not test execution.
-- **Suggest better ideas** — when a simpler, safer, or more idiomatic approach exists, say what and why.
-- **Always post to the PR** — use `gh pr review` or `gh pr comment` so feedback lands on the PR.
+- **Issues only** — never list praise or summaries. The review is exclusively problems and suggestions.
+- **Approve when clean** — if there are no meaningful issues, approve with a short note. Do not invent problems to fill categories.
+- **Skip empty categories** — only include a category (Correctness, Design, Better ideas, etc.) when you have real findings in it. If no better idea exists, omit the category entirely rather than forcing one.
+- **Detailed issues** — each finding includes file/line references, root cause, severity, and a concrete fix.
+- **Prefer posting to the PR** — use `gh pr review` or `gh pr comment` so feedback lands on the PR. Fall back to printing if posting isn't possible.
+- **Do not run tests** — review for missing test coverage only.
+- **Focus on material issues** — correctness, maintainability, and performance. Skip trivial formatting nits unless they violate project conventions.
 
 ## Workflow
 
 ### 1. Gather the diff
 
-If the user names a PR number or branch, fetch the diff:
-
 ```bash
-gh pr diff <number>           # GitHub PR
-gh pr diff <branch>           # or by branch
-git diff origin/main...HEAD   # local branch vs base
+gh pr diff <number>                            # GitHub PR by number or URL
+gh pr list --head <branch> --json number -q '.[0].number' | xargs gh pr diff  # by branch
+git diff $(git merge-base origin/HEAD HEAD)..HEAD   # local branch vs merge base (works regardless of default branch name)
 ```
 
-If no PR is specified, diff the working tree against the merge base.
+If the diff is large (>10 files), prioritize files with the most significant changes (largest hunks, core logic, security-sensitive paths) rather than reading every file.
 
-### 2. Read the changed files
+### 2. Read changed files
 
-For each changed file, read the full file (not just the diff) to understand context. Look at surrounding code, imported modules, and callers.
+Read the relevant sections around each change in the diff — not the entire file. For each hunk, read enough surrounding context to understand the logic. Read imported modules only when a change touches their interface. Read callers only when a signature changes.
+
+Read files in parallel when they are independent.
 
 ### 3. Review with this checklist
 
-Scan for these categories. List only issues found — skip categories that are clean.
+Scan for these categories. Skip any category that has no genuine findings — an empty category is noise.
 
 **Correctness**
 - Logic errors, off-by-one, inverted conditions, missing null/error handling
@@ -64,24 +65,37 @@ Scan for these categories. List only issues found — skip categories that are c
 
 ### 4. Format the review
 
-Each issue follows this compact template:
+Each issue follows this template:
 
 ```
-**`file:line`** — <one-line summary>
-> <1–3 sentences: what's wrong, why it matters, concrete fix>
+**[Severity] `file:line`** — one-line summary
+> what's wrong, why it matters, concrete fix
 ```
 
-Group related issues under a category header only when there are ≥3 findings in that category. Otherwise, list them flat.
+Severities: `BLOCKER` (must fix before merge), `IMPORTANT` (should fix), `NIT` (nice to fix).
 
-No greeting, no closing, no "overall this looks good" — issues only.
+For cross-cutting issues spanning multiple files, use `**Multiple files** — summary` with a list of affected files.
+
+Always tag each issue with its category: `[Correctness]`, `[Design]`, `[Missing test]`, `[Better idea]`, or `[Nit]`.
+
+Write the output to `review.md`.
 
 ### 5. Post to PR
 
 ```bash
 gh pr review <number> --comment --body "$(cat review.md)"
-# or for inline comments:
+# Use --request-changes only when there are BLOCKER issues:
 gh pr review <number> --request-changes --body "$(cat review.md)"
+# Or use gh pr comment for individual comments:
+gh pr comment <number> --body "$(cat review.md)"
 ```
 
 If `gh` is not authenticated, use `gh auth status` to check and ask the user to authenticate. Fall back to printing the review if posting isn't possible.
 
+## Approving a clean PR
+
+If no issues are found after a thorough review, approve with:
+
+```bash
+gh pr review <number> --approve --body "LGTM. No issues found."
+```
