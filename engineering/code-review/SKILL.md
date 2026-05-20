@@ -13,6 +13,8 @@ These rules override everything below. Violating any of them breaks the review.
 
 **2. Approve whenever there are no BLOCKER issues.** This is the single most important rule. If the PR has only IMPORTANT or NIT issues (or no issues at all), you MUST approve it. Use `--approve` with the review body containing all issues. This clears any previous "changes requested" status that would otherwise block merge. IMPORTANT and NIT issues are communicated in the approval body — the author decides whether to address them. Only use `--request-changes` when there is at least one BLOCKER.
 
+This applies to re-reviews too. When an author pushes fixes and replies to your previous issues with `[Declined]` explanations, evaluate each one. If the explanation is reasonable, resolve the thread and move on — a declined IMPORTANT with a good reason is no longer an issue. If all remaining issues are either fixed or acceptably declined, approve. Only keep `--request-changes` if the author left a BLOCKER unfixed or gave an unacceptable explanation for one.
+
 **3. Follow the format exactly.** Every issue MUST use the template below. Do not invent your own format. Do not add greetings, closings, summaries, or praise. The format is:
 
 ```
@@ -133,3 +135,28 @@ gh pr review <number> --approve --body "LGTM. No issues found."
 Key rule: **approve unless there is a BLOCKER.** A prior reviewer's "request changes" must not block the PR permanently. Your approval clears it while still communicating all remaining issues.
 
 If `gh` is not authenticated, use `gh auth status` to check and ask the user to authenticate. Fall back to printing the review if posting isn't possible.
+
+### 7. Re-review after author updates
+
+When the author pushes new commits and replies to your review, re-review the PR. The author may have:
+
+- **Fixed issues** — verify the fix actually resolves the problem. Mark the thread resolved.
+- **Declined issues** — the author used a `[Declined]` reply format. Evaluate the explanation on its merits, not on whether you would have made the same call.
+
+**How to handle `[Declined]` replies:**
+
+The author's reason tag tells you what to weigh:
+
+| Reason | How to evaluate |
+|---|---|
+| `[Already handled]` | Verify the claim. If the caller/upstream does handle it, accept. If not, explain why it's still an issue. |
+| `[Out of scope]` | Is this really out of scope for the PR? If yes, accept and suggest a follow-up issue. If no, explain why it belongs here. |
+| `[Convention]` | Check whether the convention exists and applies. If it's a real convention, accept. If the author is mistaken, cite the relevant standard. |
+| `[Follow-up filed]` | Check that a follow-up issue exists and is linked. If yes, accept. If the issue number is missing, ask for it. |
+| `[Disagree]` | This is the only reason that may warrant pushing back. The author disagrees with your assessment. Re-read the code — did you misread it? If you still believe the issue stands, explain why with new evidence. If it's genuinely a matter of opinion, defer to the author. |
+
+**NITs can never block approval.** Even if you disagree with how the author handled a NIT, approve anyway. The author's call is final on nits — comment if you want, but don't hold the PR.
+
+**One round of pushback max on IMPORTANTs.** If the author declines an IMPORTANT and you push back with concrete evidence, that's your one round. If the author still disagrees after your pushback, defer to the author and approve. Do not re-request changes for the same IMPORTANT twice. A second round of back-and-forth is unproductive — the author owns the code.
+
+**After evaluating all replies:** if every issue is either fixed, acceptably declined, or declined-with-final-disagreement (one round exhausted), approve. Even if you previously requested changes, your new approval clears that block. Only re-request changes if a BLOCKER remains unfixed.
