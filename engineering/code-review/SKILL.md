@@ -5,14 +5,38 @@ description: Review pull requests and code changes with concise, issues-only fee
 
 # Code Review
 
+## Critical rules — read before anything else
+
+These rules override everything below. Violating any of them breaks the review.
+
+**1. NEVER run tests.** Do not execute `npm test`, `pytest`, `cargo test`, `go test`, or any test runner. Not even to "check if they pass." Not even a single file. Your job is to review for missing test coverage — that's it. Running tests wastes time, may not be configured for your environment, and belongs to CI/CD.
+
+**2. Approve whenever there are no BLOCKER issues.** This is the single most important rule. If the PR has only IMPORTANT or NIT issues (or no issues at all), you MUST approve it. Use `--approve` with the review body containing all issues. This clears any previous "changes requested" status that would otherwise block merge. IMPORTANT and NIT issues are communicated in the approval body — the author decides whether to address them. Only use `--request-changes` when there is at least one BLOCKER.
+
+**3. Follow the format exactly.** Every issue MUST use the template below. Do not invent your own format. Do not add greetings, closings, summaries, or praise. The format is:
+
+```
+**[Severity] [Category] `file:line`** — one-line summary
+> what's wrong, why it matters, concrete fix
+```
+
+Example of a correctly formatted review with one BLOCKER and one IMPORTANT:
+
+```
+**[BLOCKER] [Correctness] `src/auth.ts:42`** — missing token expiry check
+> `verifyToken()` returns `payload` but never checks `payload.exp`. An expired token silently passes authentication. Add `if (payload.exp < Date.now()/1000) throw new TokenExpiredError()` after the verify call.
+
+**[IMPORTANT] [Missing test] `src/auth.ts:42-58`** — no test for expired token rejection
+> The new expiry check has no test coverage. Add a case in `auth.test.ts` that passes an already-expired token and asserts a 401 response.
+```
+
 ## Principles
 
 - **Issues only** — never list praise or summaries. The review is exclusively problems and suggestions.
-- **Approve when clean** — if there are no meaningful issues, approve with a short note. Do not invent problems to fill categories.
-- **Skip empty categories** — only include a category (Correctness, Design, Better ideas, etc.) when you have real findings in it. If no better idea exists, omit the category entirely rather than forcing one.
-- **Detailed issues** — each finding includes file/line references, root cause, severity, and a concrete fix.
-- **Prefer posting to the PR** — use `gh pr review` or `gh pr comment` so feedback lands on the PR. Fall back to printing if posting isn't possible.
-- **Do not run tests** — review for missing test coverage only.
+- **Approve when clean** — if there are no BLOCKER issues, approve. Do not hold the PR for IMPORTANT or NIT issues.
+- **Skip empty categories** — only include a category (Correctness, Design, Better ideas, etc.) when you have real findings in it.
+- **Detailed issues** — each finding includes file/line references, severity, category tag, and a concrete fix.
+- **Prefer posting to the PR** — use `gh pr review` so feedback lands on the PR. Fall back to printing only if posting isn't possible.
 - **Focus on material issues** — correctness, maintainability, and performance. Skip trivial formatting nits unless they violate project conventions.
 
 ## Workflow
@@ -65,37 +89,47 @@ Scan for these categories. Skip any category that has no genuine findings — an
 
 ### 4. Format the review
 
-Each issue follows this template:
+Each issue MUST follow this exact template:
 
 ```
-**[Severity] `file:line`** — one-line summary
+**[Severity] [Category] `file:line`** — one-line summary
 > what's wrong, why it matters, concrete fix
 ```
 
 Severities: `BLOCKER` (must fix before merge), `IMPORTANT` (should fix), `NIT` (nice to fix).
 
-For cross-cutting issues spanning multiple files, use `**Multiple files** — summary` with a list of affected files.
+Categories: `[Correctness]`, `[Design]`, `[Missing test]`, `[Better idea]`, `[Nit]`.
 
-Always tag each issue with its category: `[Correctness]`, `[Design]`, `[Missing test]`, `[Better idea]`, or `[Nit]`.
+For cross-cutting issues spanning multiple files, use `**[Severity] [Category] Multiple files** — summary` with a list of affected files.
+
+No greeting, no closing, no "overall this looks good" — issues only. No markdown headings for categories — just the issue lines.
 
 Write the output to `review.md`.
 
-### 5. Post to PR
+### 5. Verify format before posting
+
+Before posting, check every issue line in `review.md` against the template:
+
+- Does every issue start with `**[` followed by a severity and `]**`?
+- Does every issue have a `[Category]` tag?
+- Does every issue have a `` `file:line` `` reference (or `Multiple files`)?
+- Are there no greetings, closings, or praise lines?
+
+### 6. Post to PR
+
+The command depends on the highest severity found:
 
 ```bash
-gh pr review <number> --comment --body "$(cat review.md)"
-# Use --request-changes only when there are BLOCKER issues:
+# BLOCKER present → request changes (blocks merge):
 gh pr review <number> --request-changes --body "$(cat review.md)"
-# Or use gh pr comment for individual comments:
-gh pr comment <number> --body "$(cat review.md)"
-```
 
-If `gh` is not authenticated, use `gh auth status` to check and ask the user to authenticate. Fall back to printing the review if posting isn't possible.
+# Only IMPORTANT and/or NIT → approve (clears previous blocks, author decides on remaining issues):
+gh pr review <number> --approve --body "$(cat review.md)"
 
-## Approving a clean PR
-
-If no issues are found after a thorough review, approve with:
-
-```bash
+# No issues at all → approve with a brief note:
 gh pr review <number> --approve --body "LGTM. No issues found."
 ```
+
+Key rule: **approve unless there is a BLOCKER.** A prior reviewer's "request changes" must not block the PR permanently. Your approval clears it while still communicating all remaining issues.
+
+If `gh` is not authenticated, use `gh auth status` to check and ask the user to authenticate. Fall back to printing the review if posting isn't possible.
