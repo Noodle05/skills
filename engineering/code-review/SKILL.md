@@ -7,85 +7,105 @@ description: Review pull requests and code changes with concise, issues-only fee
 
 ## Critical rules
 
-**1. NEVER run tests.** No `npm test`, `pytest`, `cargo test`, `go test`, or any test runner. Your job is reviewing for missing coverage — running tests belongs to CI/CD.
+**1. NEVER run tests.** Do not execute any test runner. Your job is to review for missing test coverage — that's it. Running tests belongs to CI/CD.
 
-**2. Approve when no BLOCKER issues.** If the PR has only IMPORTANT or NIT issues (or none), you MUST approve via `--approve` with all issues in the body. Only use `--request-changes` when at least one BLOCKER exists. On re-review: if all issues are fixed or acceptably declined, approve — even if you previously requested changes.
+**2. Approve when there are no BLOCKER issues.** If the PR has only IMPORTANT or NIT issues (or none), approve with `--approve` and all issues in the body. Only `--request-changes` when at least one BLOCKER exists.
+
+On re-review: if the author fixed issues or gave reasonable `[Declined]` explanations (see code-author skill), approve. Only keep `--request-changes` for an unfixed BLOCKER. See [REFERENCE.md](REFERENCE.md) for how to evaluate each decline reason.
 
 **3. Follow the format exactly.** Every issue uses:
+
 ```
 **[Severity] [Category] `file:line`** — one-line summary
 > what's wrong, why it matters, concrete fix
 ```
-No greetings, closings, summaries, or praise. Issues only.
 
 Example:
+
 ```
 **[BLOCKER] [Correctness] `src/auth.ts:42`** — missing token expiry check
-> `verifyToken()` never checks `payload.exp`. An expired token silently passes auth. Add expiry check after the verify call.
+> `verifyToken()` never checks `payload.exp`. An expired token silently passes. Add `if (payload.exp < Date.now()/1000) throw new TokenExpiredError()`.
+
+**[IMPORTANT] [Missing test] `src/auth.ts:42-58`** — no test for expired token rejection
+> The new expiry check has no coverage. Add a case in `auth.test.ts` with an expired token asserting 401.
 ```
+
+## Principles
+
+- **Issues only** — no praise, no summaries, no greetings. Only problems and suggestions.
+- **Approve when clean** — no BLOCKER = approve. IMPORTANT and NIT go in the approval body.
+- **Detailed issues** — every finding has file:line, severity, category, and a concrete fix.
+- **Post to PR** — use `gh pr review`. Fall back to printing only if posting isn't possible.
 
 ## Workflow
 
 ### 1. Gather the diff
+
 ```bash
 gh pr diff <number>
 gh pr list --head <branch> --json number -q '.[0].number' | xargs gh pr diff
 git diff $(git merge-base origin/HEAD HEAD)..HEAD
 ```
-If >10 files, prioritize largest hunks, core logic, and security-sensitive paths.
+
+If the diff is large (>10 files), prioritize files with the largest hunks and security-sensitive paths.
 
 ### 2. Read changed files
-Read relevant sections around each change — not the entire file. Read imports only when a change touches their interface. Read callers only when a signature changes. Read files in parallel when independent.
+
+Read relevant sections around each change — not entire files. Read enough context to understand the logic. Read in parallel when files are independent.
 
 ### 3. Review checklist
-Skip categories with no genuine findings.
 
-**Correctness** — logic errors, off-by-one, inverted conditions, missing null/error handling, race conditions, security (injection, auth bypass, exposed secrets, input validation)
+Scan for these categories. Skip any with no genuine findings.
 
-**Design** — unnecessary complexity, tangled responsibilities, duplicated logic, violations of codebase patterns
+**Correctness** — logic errors, off-by-one, missing null/error handling, race conditions, security (injection, auth bypass, exposed secrets)
 
-**Missing tests** — new logic without tests, uncovered edge cases (empty, null, boundary, error), untested integration points
+**Design** — unnecessary complexity, missing separation of concerns, duplicated logic, violations of codebase patterns
 
-**Missing context** — PR description has no issue/design doc link AND no `Self-contained` marker. IMPORTANT if non-trivial and motivation isn't obvious from the diff; NIT if self-explanatory. Do NOT flag if `Self-contained` is present.
+**Missing tests** — new logic without tests, edge cases uncovered (empty, boundary, error), untested integration points
 
-**Better ideas** — simpler algorithm or data structure, existing utility the author missed, more idiomatic pattern
+**Better ideas** — simpler algorithm/library, existing utility the author missed, more idiomatic pattern
 
-**Nits** — misleading names, dead code, leftover comments, stray logs, loose/tight types, unhelpful error messages
+**Nits** — misleading names, dead code, leftover comments, stray logs, loose type annotations, unhelpful error messages
 
-### 4. Format and post
+### 4. Format the review
 
-Write issues to `review.md`. Every issue:
 ```
 **[Severity] [Category] `file:line`** — one-line summary
 > what's wrong, why it matters, concrete fix
 ```
 
 Severities: `BLOCKER` (must fix), `IMPORTANT` (should fix), `NIT` (nice to fix).
-Categories: `[Correctness]`, `[Design]`, `[Missing test]`, `[Missing context]`, `[Better idea]`, `[Nit]`.
-Cross-cutting: `**[Severity] [Category] Multiple files** — summary` with file list.
+Categories: `[Correctness]`, `[Design]`, `[Missing test]`, `[Better idea]`, `[Nit]`.
 
-Verify format, then post:
+Cross-cutting issues: `**[Severity] [Category] Multiple files** — summary` with affected files listed.
+
+Write the output to `review.md`.
+
+### 5. Verify format before posting
+
+Check every line in `review.md`: starts with `**[`, has severity, has `[Category]`, has `` `file:line` `` or `Multiple files`. No greetings, closings, or praise.
+
+### 6. Post to PR
+
 ```bash
-gh pr review <number> --request-changes --body "$(cat review.md)"   # if BLOCKER
-gh pr review <number> --approve --body "$(cat review.md)"            # if no BLOCKER
-gh pr review <number> --approve --body "LGTM. No issues found."      # if empty
+# BLOCKER present → request changes:
+gh pr review <number> --request-changes --body "$(cat review.md)"
+
+# Only IMPORTANT and/or NIT → approve:
+gh pr review <number> --approve --body "$(cat review.md)"
+
+# No issues → approve:
+gh pr review <number> --approve --body "LGTM. No issues found."
 ```
-If `gh` isn't authenticated, ask the user to authenticate. Fall back to printing.
 
-### 5. Re-review after updates
+If `gh` is not authenticated, use `gh auth status` to check.
 
-Author may fix or decline issues using `[Declined] [Reason]` replies. Evaluate each:
+### 7. Re-review after author updates
 
-| Reason | How to evaluate |
-|---|---|
-| `[Already handled]` | Verify the claim. If true, accept. If not, explain why it's still an issue. |
-| `[Out of scope]` | Accept if truly out of scope, suggest follow-up. If not, explain why it belongs here. |
-| `[Convention]` | Accept if convention exists. If author is mistaken, cite the relevant standard. |
-| `[Follow-up filed]` | Accept if issue linked. Ask for number if missing. |
-| `[Disagree]` | Re-read code. Push back once with new evidence. If still a matter of opinion, defer to author. |
+When the author pushes fixes and replies, re-evaluate each issue. Verify fixes, evaluate declined explanations per [REFERENCE.md](REFERENCE.md).
 
-**NITs never block.** Author's call is final. Comment if you want, but approve.
+**NITs can never block approval.** The author's call is final on nits.
 
-**One pushback max on IMPORTANTs.** If author declines and you push back with evidence, that's your round. If they still disagree, defer and approve. Never re-request changes for the same IMPORTANT twice.
+**One round of pushback max on IMPORTANTs.** Push back once with evidence, then defer — the author owns the code.
 
-**After evaluating:** if all issues are fixed, acceptably declined, or at final-disagreement, approve. Only re-request changes for an unfixed BLOCKER.
+After evaluating: if every issue is fixed or acceptably declined, approve. Only re-request changes for an unfixed BLOCKER.
