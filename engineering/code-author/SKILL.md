@@ -78,13 +78,15 @@ git commit -m "fix: address review — <brief description>"
 git push
 ```
 
-### 7. Create PR (if needed)
+### 7. Create PR
+
+The task is incomplete until a PR exists. After pushing, verify a PR exists for this branch. If not, create one — this is mandatory.
 
 ```bash
 # Check if PR exists
 gh pr list --head $(git branch --show-current) --json number --jq '.[0].number'
 
-# If not, create one:
+# If no PR exists, create one now — do not skip this step:
 gh pr create \
   --title "<concise title>" \
   --body "$(cat <<'EOF'
