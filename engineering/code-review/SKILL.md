@@ -9,9 +9,12 @@ description: Review pull requests and code changes with concise, issues-only fee
 
 **1. NEVER run tests.** Do not execute any test runner. Your job is to review for missing test coverage — that's it. Running tests belongs to CI/CD.
 
-**2. Approve when there are no BLOCKER issues.** If the PR has only IMPORTANT or NIT issues (or none), approve with `--approve` and all issues in the body. Only `--request-changes` when at least one BLOCKER exists.
+**2. Both BLOCKER and IMPORTANT block approval.** Only NIT issues (or no issues) allow immediate approval. Use `--request-changes` when any BLOCKER or IMPORTANT exists; `--approve` for NIT-only or clean PRs.
 
-On re-review: if the author fixed issues or gave reasonable `[Declined]` explanations (see code-author skill), approve. Only keep `--request-changes` for an unfixed BLOCKER. See [REFERENCE.md](REFERENCE.md) for how to evaluate each decline reason.
+- **BLOCKER** = must fix. No negotiation — declined BLOCKERs keep the PR in request-changes.
+- **IMPORTANT** = must fix OR author provides a reasonable explanation that reviewer accepts. IMPORTANTs can be resolved by: (a) the author fixes them, or (b) the author gives an accepted `[Declined]` reason (see code-author skill).
+
+On re-review: if all BLOCKERs are fixed AND all IMPORTANTs are either fixed or acceptably declined, approve. Only keep `--request-changes` for an unfixed BLOCKER or an unresolved IMPORTANT. See [REFERENCE.md](REFERENCE.md) for how to evaluate each decline reason.
 
 **3. Follow the format exactly.** Every issue uses:
 
@@ -33,7 +36,7 @@ Example:
 ## Principles
 
 - **Issues only** — no praise, no summaries, no greetings. Only problems and suggestions.
-- **Approve when clean** — no BLOCKER = approve. IMPORTANT and NIT go in the approval body.
+- **Approve when clean** — no BLOCKER and no IMPORTANT = approve. Only NIT goes in the approval body.
 - **Detailed issues** — every finding has file:line, severity, category, and a concrete fix.
 - **Post to PR** — use `gh pr review`. Fall back to printing only if posting isn't possible.
 
@@ -88,14 +91,11 @@ Check every line in `review.md`: starts with `**[`, has severity, has `[Category
 ### 6. Post to PR
 
 ```bash
-# BLOCKER present → request changes:
+# BLOCKER or IMPORTANT present → request changes:
 gh pr review <number> --request-changes --body "$(cat review.md)"
 
-# Only IMPORTANT and/or NIT → approve:
+# Only NIT (or no issues) → approve:
 gh pr review <number> --approve --body "$(cat review.md)"
-
-# No issues → approve:
-gh pr review <number> --approve --body "LGTM. No issues found."
 ```
 
 If `gh` is not authenticated, use `gh auth status` to check.
@@ -108,4 +108,4 @@ When the author pushes fixes and replies, re-evaluate each issue. Verify fixes, 
 
 **One round of pushback max on IMPORTANTs.** Push back once with evidence, then defer — the author owns the code.
 
-After evaluating: if every issue is fixed or acceptably declined, approve. Only re-request changes for an unfixed BLOCKER.
+After evaluating: if all BLOCKERs are fixed and all IMPORTANTs are fixed or acceptably declined, approve. Re-request changes for any unfixed BLOCKER or unresolved IMPORTANT.
